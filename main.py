@@ -1,20 +1,8 @@
-import requests 
-import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
-from fastapi.responses import HTMLResponse, Response, JSONResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-import uvicorn
-import time
-from app.strategy1 import generate_signal
-from app.get_rsi import get_prev_rsi
-from datetime import datetime
-from fastapi.responses import HTMLResponse
-from pytz import timezone, all_timezones
-import pytz
-from app.strategy2 import get_signal_data, check_buy_signal, check_sell_signal, check_exit_signal
+
 
 app = FastAPI()
 
@@ -38,8 +26,8 @@ def monitor_buy(symbol: str = "BTC/USDT", interval: str = "5m", exchange: str = 
         return JSONResponse(status_code=500, content={"status": "error", "detail": "Failed to fetch indicators"})
 
     if signal_data.signal == "buy":
-        return {"status": "buy", "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval}
-    return {"status": "", "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval}
+        return {"status": signal_data.signal, "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval, "last_signal":signal_data.last_signal, "previous_signal_at": signal_data.updated_at}
+    return {"status": "", "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval, "last_signal":signal_data.last_signal, "previous_signal_at": signal_data.updated_at}
 
 
 @app.get("/monitor_sell_signal")
@@ -50,8 +38,8 @@ def monitor_sell(symbol: str = "BTC/USDT", interval: str = "5m", exchange: str =
         return JSONResponse(status_code=500, content={"status": "error", "detail": "Failed to fetch indicators"})
 
     if signal_data.signal == "sell":
-        return {"status": "buy", "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval}
-    return {"status": "", "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval}
+        return {"status": signal_data.signal, "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval, "last_signal":signal_data.last_signal, "previous_signal_at": signal_data.updated_at}
+    return {"status": "", "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval, "last_signal":signal_data.last_signal, "previous_signal_at": signal_data.updated_at}
 
 
 @app.get("/monitor_exit_signal")
@@ -59,8 +47,33 @@ def monitor_exit(symbol: str = "BTC/USDT", interval: str = "5m", exchange: str =
     signal_data = process_signal(symbol, interval, exchange)
 
     if signal_data.signal == "error":
-        return JSONResponse(status_code=500, content={"status": "error", "detail": "Failed to fetch indicators"})
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "detail": "Failed to fetch indicators"
+            }
+        )
 
+    # Only respond if an exit signal is generated
     if signal_data.signal in ("exit-long", "exit-short"):
-        return {"status": "buy", "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval}
-    return {"status": "", "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval}
+        return {
+            "status": signal_data.signal,  # status is "exit-long" or "exit-short"
+            "rsi": signal_data.rsi,
+            "exchange": exchange,
+            "symbol": symbol,
+            "interval": interval,
+            "last_signal": signal_data.last_signal,
+            "previous_signal_at": signal_data.updated_at
+        }
+
+    # If no exit condition, return hold/empty status
+    return {
+        "status": "",
+        "rsi": signal_data.rsi,
+        "exchange": exchange,
+        "symbol": symbol,
+        "interval": interval,
+        "last_signal": signal_data.last_signal,
+        "previous_signal_at": signal_data.updated_at
+    }

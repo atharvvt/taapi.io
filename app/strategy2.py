@@ -64,40 +64,9 @@ def get_bulk_indicators(symbol, interval, exchange):
 
 
 
-# def generate_signal_2(symbol, interval, exchange):
-#     prev_rsi, last_signal = get_prev_rsi(symbol, interval, exchange)
-
-#     rsi, ema_9, ema_21, price = get_bulk_indicators(symbol, interval, exchange)
-
-#     if None in (rsi, ema_9, ema_21, price):
-#         return SignalResponse(signal="error", rsi=0.0, ema=0.0)
-
-#     signal = "hold"
-
-#     # Buy strategy
-#     if rsi > 30 and prev_rsi and prev_rsi <= 30 and ema_9 > ema_21:
-#         signal = "buy"
-
-#     # Sell strategy
-#     elif rsi < 70 and prev_rsi and prev_rsi >= 70 and ema_9 < ema_21:
-#         signal = "sell"
-
-#     # Exit long position
-#     elif (rsi > 70 and prev_rsi < rsi) or ema_9 < ema_21:
-#         signal = "exit-long"
-
-#     # Exit short position
-#     elif (rsi < 30 and prev_rsi > rsi) or ema_9 > ema_21:
-#         signal = "exit-short"
-
-#     update_signal_in_db(symbol, interval, exchange, rsi, signal)
-#     return SignalResponse(signal=signal, rsi=round(rsi, 2), ema=round(ema_9, 2))
-
-
-
 
 def get_signal_data(symbol, interval, exchange):
-    prev_rsi, last_signal = get_prev_rsi(symbol, interval, exchange)
+    prev_rsi, last_signal, updated_at = get_prev_rsi(symbol, interval, exchange)
     rsi, ema_9, ema_21, price = get_bulk_indicators(symbol, interval, exchange)
 
     if None in (rsi, ema_9, ema_21, price):
@@ -117,7 +86,9 @@ def get_signal_data(symbol, interval, exchange):
         "prev_rsi": prev_rsi,
         "ema_9": ema_9,
         "ema_21": ema_21,
-        "price": price
+        "price": price,
+        "last_signal" : last_signal,
+        "previous_signal_at": updated_at
     }
 
 
@@ -137,38 +108,45 @@ def check_sell_signal(data):
         and data["ema_9"] < data["ema_21"]
     )
 
-def check_exit_signal(data):
-    if data["prev_rsi"] is None:
-        return False  # Or handle with a fallback if desired
-
+def check_exit_long(data):
     return (
-        (data["rsi"] > 70 and data["prev_rsi"] < data["rsi"])
-        or data["ema_9"] < data["ema_21"]
-        or (data["rsi"] < 30 and data["prev_rsi"] > data["rsi"])
-        or data["ema_9"] > data["ema_21"]
+        (data["prev_rsi"] is not None and data["prev_rsi"] > 70 and data["rsi"] < data["prev_rsi"])
+        or (data["ema_9"] < data["ema_21"])
     )
+
+def check_exit_short(data):
+    return (
+        (data["prev_rsi"] is not None and data["prev_rsi"] < 30 and data["rsi"] > data["prev_rsi"])
+        or (data["ema_9"] > data["ema_21"])
+    )
+
 
 
 def process_signal(symbol, interval, exchange):
     data = get_signal_data(symbol, interval, exchange)
 
+    print("*"*50)
+    print(data)
+    print("*"*50)
+
     if not data:
         print("Error fetching indicator data.")
         return SignalResponse(signal="error", rsi=0.0, ema=0.0)
-
-    # Default signal
-    signal = "hold"
+    
+    signal = ""
 
     # Signal checks
     if check_buy_signal(data):
         signal = "buy"
     elif check_sell_signal(data):
         signal = "sell"
-    elif check_exit_signal(data):
-        if data["rsi"] > 70:
-            signal = "exit-long"
-        elif data["rsi"] < 30:
-            signal = "exit-short"
+    elif check_exit_long(data):
+        signal = "exit-long"
+    elif check_exit_short(data):
+        signal = "exit-short"
+    else:
+        signal = "hold"
+
 
     # ✅ Save latest RSI and signal
     update_signal_in_db(
@@ -182,5 +160,7 @@ def process_signal(symbol, interval, exchange):
     return SignalResponse(
         signal=signal,
         rsi=round(data["rsi"], 2),
-        ema=round(data["ema_9"], 2)
+        ema=round(data["ema_9"], 2),
+        last_signal=data.get("last_signal", ""),
+        updated_at=data["previous_signal_at"]
     )

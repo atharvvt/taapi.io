@@ -31,7 +31,7 @@ def update_signal_in_db(symbol: str, exchange: str, interval: str, prev_rsi: flo
 def get_prev_rsi(symbol: str, interval: str, exchange: str):
     """Fetch previous RSI and last signal from Supabase."""
     response = supabase.table("signals") \
-        .select("prev_rsi", "last_signal") \
+        .select("prev_rsi", "last_signal", "updated_at") \
         .eq("symbol", symbol) \
         .eq("interval", interval) \
         .eq("exchange", exchange) \
@@ -40,8 +40,8 @@ def get_prev_rsi(symbol: str, interval: str, exchange: str):
 
     if response.data and len(response.data) > 0:
         data = response.data[0]
-        return data.get("prev_rsi"), data.get("last_signal")
+        return data.get("prev_rsi"), data.get("last_signal"), data.get("updated_at")
 
-    return None, "init"
+    return None, None , None
 
 

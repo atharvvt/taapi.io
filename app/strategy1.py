@@ -134,8 +134,7 @@ def generate_signal(period, symbol, interval, exchange):
 
     if rsi is None or ema is None or current_price is None:
         return SignalResponse(signal="error", rsi=0.0, ema=0.0)
-
-    signal = "hold"
+    signal = ""
 
     if prev_rsi is not None:
         if prev_rsi < 25 and 25 < rsi < 30 and current_price > ema:
