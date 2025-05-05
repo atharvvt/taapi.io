@@ -5,10 +5,11 @@ from dotenv import load_dotenv
 from app.schema import SignalResponse
 from app.get_rsi import update_signal_in_db, get_prev_rsi
 
+
 load_dotenv()
 
 BASE_URL = "https://api.taapi.io"
-TAAPI_SECRET = os.getenv("TAAPI_IO")
+TAAPI_SECRET = os.getenv("TAAPI_IO_PRO")
 
 memory_store = {}
 
@@ -144,3 +145,11 @@ def generate_signal(period, symbol, interval, exchange):
 
     update_signal_in_db(symbol, interval, exchange, rsi, signal)
     return SignalResponse(signal=signal, rsi=round(rsi, 2), ema=round(ema, 2))
+
+import requests
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+

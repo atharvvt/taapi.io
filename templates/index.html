@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Signal Monitor</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2a71d0;
+            --secondary-color: #173b66;
+            --background-color: #f5f8fc;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --neutral-color: #6c757d;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+        }
+
+        h1 {
+            color: var(--secondary-color);
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--primary-color);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin: 25px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex: 1;
+            min-width: 120px;
+            max-width: 200px;
+        }
+
+        #buy_signal_button {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        #sell_signal_button {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        #exit_signal_button {
+            background-color: var(--neutral-color);
+            color: white;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .result-panel {
+            background-color: rgba(245, 248, 252, 0.6);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .result-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .result-label {
+            font-weight: 600;
+            width: 120px;
+        }
+
+        .result-value {
+            font-weight: 600;
+            font-size: 18px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background-color: #ccc;
+        }
+
+        .status-buy {
+            background-color: var(--success-color);
+        }
+
+        .status-sell {
+            background-color: var(--danger-color);
+        }
+
+        .status-hold {
+            background-color: #f9a825;
+        }
+
+        .status-neutral {
+            background-color: var(--neutral-color);
+        }
+
+        .loader {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        .countdown {
+            text-align: center;
+            margin: 15px 0;
+            font-size: 16px;
+            color: var(--secondary-color);
+        }
+
+        .countdown-value {
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .note {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: rgba(255, 248, 225, 0.5);
+            border-left: 4px solid #f9a825;
+            font-size: 14px;
+            color: #5d4037;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Crypto Signal Monitor</h1>
+        
+        <!-- Action Buttons -->
+        <div class="button-group">
+            <button id="buy_signal_button">Get Buy Signal</button>
+            <button id="sell_signal_button">Get Sell Signal</button>
+            <button id="exit_signal_button">Get Exit Signal</button>
+        </div>
+
+        <!-- Countdown Timer -->
+        <div class="countdown">
+            Refreshing in: <span class="countdown-value" id="countdown">60</span> seconds
+        </div>
+
+        <!-- Result Display -->
+        <div class="result-panel">
+            <div class="result-row">
+                <div class="result-label">Status:</div>
+                <div class="result-value">
+                    <span class="status-indicator" id="status-indicator"></span>
+                    <span id="status">-</span>
+                    <div class="loader" id="loader"></div>
+                </div>
+            </div>
+            <div class="result-row">
+                <div class="result-label">RSI:</div>
+                <div class="result-value" id="rsi">-</div>
+            </div>
+            <div class="result-row">
+                <div class="result-label">Exchange:</div>
+                <div class="result-value" id="exchange">-</div>
+            </div>
+            <div class="result-row">
+                <div class="result-label">Symbol:</div>
+                <div class="result-value" id="symbol">-</div>
+            </div>
+            <div class="result-row">
+                <div class="result-label">Interval:</div>
+                <div class="result-value" id="interval">-</div>
+            </div>
+        </div>
+
+        <div class="note">
+            <strong>Note:</strong> The signal considers multiple technical indicators beyond RSI, including MACD, Bollinger Bands, and volume patterns. Always confirm signals with additional market analysis before making trading decisions.
+        </div>
+    </div>
+
+    <script>
+        // Default values
+        const defaultSymbol = "BTC/USDT";
+        const defaultInterval = "5m";
+        const defaultExchange = "binance";
+        
+        let activeSignalType = 'buy'; // Default signal type to fetch
+        let countdownTimer = 60;
+        let countdownInterval;
+        let isAutoRefreshing = false;
+
+        // Function to handle the API call
+        function fetchSignal(apiUrl, signalType, autoRefresh = false) {
+            // Show loader
+            $('#loader').show();
+            
+            // Store the active signal type
+            activeSignalType = signalType;
+            
+            // Set fixed values (previously from inputs)
+            const symbol = defaultSymbol;
+            const interval = defaultInterval;
+            const exchange = defaultExchange;
+
+            // Reset indicator class
+            $('#status-indicator').removeClass('status-buy status-sell status-hold status-neutral');
+
+            $.get(apiUrl, { symbol, interval, exchange }, function(response) {
+                if (response.status === 'error') {
+                    $('#status').text('Error fetching data');
+                    $('#rsi').text('-');
+                    $('#exchange').text('-');
+                    $('#symbol').text('-');
+                    $('#interval').text('-');
+                    $('#status-indicator').addClass('status-neutral');
+                } else {
+                    $('#status').text(response.status);
+                    $('#rsi').text(response.rsi);
+                    $('#exchange').text(response.exchange || exchange);
+                    $('#symbol').text(response.symbol || symbol);
+                    $('#interval').text(response.interval || interval);
+                    
+                    // Set appropriate indicator color based on status
+                    if (response.status === 'buy') {
+                        $('#status-indicator').addClass('status-buy');
+                    } else if (response.status === 'sell') {
+                        $('#status-indicator').addClass('status-sell');
+                    } else if (response.status === 'hold') {
+                        $('#status-indicator').addClass('status-hold');
+                    } else {
+                        $('#status-indicator').addClass('status-neutral');
+                    }
+                }
+                
+                // Hide loader
+                $('#loader').hide();
+                
+                // Start auto-refresh if requested
+                if (autoRefresh && !isAutoRefreshing) {
+                    startAutoRefresh();
+                }
+            }).fail(function() {
+                $('#status').text('API call failed');
+                $('#rsi').text('-');
+                $('#exchange').text('-');
+                $('#symbol').text('-');
+                $('#interval').text('-');
+                $('#status-indicator').addClass('status-neutral');
+                $('#loader').hide();
+            });
+        }
+
+        // Function to start auto refresh
+        function startAutoRefresh() {
+            isAutoRefreshing = true;
+            countdownTimer = 60;
+            updateCountdown();
+            
+            // Clear any existing interval
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            // Set new interval
+            countdownInterval = setInterval(function() {
+                countdownTimer--;
+                updateCountdown();
+                
+                if (countdownTimer <= 0) {
+                    countdownTimer = 60; // Reset countdown
+                    
+                    // Determine which API to call based on active signal type
+                    let apiUrl;
+                    if (activeSignalType === 'buy') {
+                        apiUrl = '/monitor_buy_signal';
+                    } else if (activeSignalType === 'sell') {
+                        apiUrl = '/monitor_sell_signal';
+                    } else {
+                        apiUrl = '/monitor_exit_signal';
+                    }
+                    
+                    fetchSignal(apiUrl, activeSignalType);
+                }
+            }, 1000);
+        }
+
+        // Function to update countdown display
+        function updateCountdown() {
+            $('#countdown').text(countdownTimer);
+        }
+
+        // Event listeners for buttons
+        $('#buy_signal_button').click(function() {
+            fetchSignal('/monitor_buy_signal', 'buy', true);
+        });
+
+        $('#sell_signal_button').click(function() {
+            fetchSignal('/monitor_sell_signal', 'sell', true);
+        });
+
+        $('#exit_signal_button').click(function() {
+            fetchSignal('/monitor_exit_signal', 'exit', true);
+        });
+    </script>
+</body>
+</html>

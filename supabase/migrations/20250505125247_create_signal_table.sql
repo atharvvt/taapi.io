@@ -4,10 +4,7 @@ create table if not exists public.signals (
   symbol text not null,
   exchange text not null,
   interval text not null,
-  prev_rsi float8,
+  prev_rsi double precision,
   last_signal text,
-  updated_at timestamp with time zone default timezone('utc'::text, now()),
-
-  -- prevent duplicates
-  unique(symbol, exchange, interval)
+  updated_at timestamptz default timezone('utc', now())
 );

@@ -1,0 +1,186 @@
+import requests
+import os
+import time
+from dotenv import load_dotenv
+from app.schema import SignalResponse
+from app.get_rsi import update_signal_in_db, get_prev_rsi
+# _____________________________
+# Buy, Sell and Exit Strategy 
+
+# TAAPI.IO APIs used in the RSI-based crypto trading strategy:
+
+# 	1.	RSI – for detecting overbought or oversold conditions
+# 	2.	EMA (Exponential Moving Average) – for trend confirmation
+# 	3.	Price – for retrieving the current or latest candle price
+# ______________________________
+# 1. Buy when RSI(14) crosses above 30 and EMA(9) crosses above EMA(21).
+# 2. Sell when RSI(14) crosses below 70 and EMA(9) crosses below EMA(21).
+# 3. Exit longs if RSI goes above 70 and reverses, or if EMA(9) drops below EMA(21).
+# 4. Exit shorts if RSI goes below 30 and reverses, or if EMA(9) rises above EMA(21).
+# ______________________________
+
+load_dotenv()
+
+BASE_URL = "https://api.taapi.io"
+TAAPI_SECRET = os.getenv("TAAPI_IO_PRO")
+
+memory_store = {}
+
+def get_bulk_indicators(symbol, interval, exchange):
+    url = f"{BASE_URL}/bulk"
+    params = {"secret": TAAPI_SECRET}
+    json_data = {
+        "secret": TAAPI_SECRET,
+        "construct": [
+            {
+                "exchange": exchange,
+                "symbol": symbol,
+                "interval": interval,
+                "indicators": [
+                    {"indicator": "rsi", "params": {"period": 14}},
+                    {"indicator": "ema", "params": {"period": 9}},
+                    {"indicator": "ema", "params": {"period": 21}},
+                    {"indicator": "price"}
+                ]
+            }
+        ]
+    }
+
+    response = requests.post(url, params=params, json=json_data)
+
+    if response.status_code == 200:
+        data = response.json().get("data", [])
+        if len(data) >= 4:
+            rsi = data[0]["result"]["value"]
+            ema_9 = data[1]["result"]["value"]
+            ema_21 = data[2]["result"]["value"]
+            price = data[3]["result"]["value"]
+            return rsi, ema_9, ema_21, price
+    else:
+        print("Bulk API Error:", response.status_code, response.text)
+
+    return None, None, None, None
+
+
+
+
+# def generate_signal_2(symbol, interval, exchange):
+#     prev_rsi, last_signal = get_prev_rsi(symbol, interval, exchange)
+
+#     rsi, ema_9, ema_21, price = get_bulk_indicators(symbol, interval, exchange)
+
+#     if None in (rsi, ema_9, ema_21, price):
+#         return SignalResponse(signal="error", rsi=0.0, ema=0.0)
+
+#     signal = "hold"
+
+#     # Buy strategy
+#     if rsi > 30 and prev_rsi and prev_rsi <= 30 and ema_9 > ema_21:
+#         signal = "buy"
+
+#     # Sell strategy
+#     elif rsi < 70 and prev_rsi and prev_rsi >= 70 and ema_9 < ema_21:
+#         signal = "sell"
+
+#     # Exit long position
+#     elif (rsi > 70 and prev_rsi < rsi) or ema_9 < ema_21:
+#         signal = "exit-long"
+
+#     # Exit short position
+#     elif (rsi < 30 and prev_rsi > rsi) or ema_9 > ema_21:
+#         signal = "exit-short"
+
+#     update_signal_in_db(symbol, interval, exchange, rsi, signal)
+#     return SignalResponse(signal=signal, rsi=round(rsi, 2), ema=round(ema_9, 2))
+
+
+
+
+def get_signal_data(symbol, interval, exchange):
+    prev_rsi, last_signal = get_prev_rsi(symbol, interval, exchange)
+    rsi, ema_9, ema_21, price = get_bulk_indicators(symbol, interval, exchange)
+
+    if None in (rsi, ema_9, ema_21, price):
+ 
+        return None
+    
+    print({
+        "rsi": rsi,
+        "prev_rsi": prev_rsi,
+        "ema_9": ema_9,
+        "ema_21": ema_21,
+        "price": price
+    })
+
+    return {
+        "rsi": rsi,
+        "prev_rsi": prev_rsi,
+        "ema_9": ema_9,
+        "ema_21": ema_21,
+        "price": price
+    }
+
+
+def check_buy_signal(data):
+    return (
+        data["rsi"] > 30
+        and data["prev_rsi"] is not None
+        and data["prev_rsi"] <= 30
+        and data["ema_9"] > data["ema_21"]
+    )
+
+def check_sell_signal(data):
+    return (
+        data["rsi"] < 70
+        and data["prev_rsi"] is not None
+        and data["prev_rsi"] >= 70
+        and data["ema_9"] < data["ema_21"]
+    )
+
+def check_exit_signal(data):
+    if data["prev_rsi"] is None:
+        return False  # Or handle with a fallback if desired
+
+    return (
+        (data["rsi"] > 70 and data["prev_rsi"] < data["rsi"])
+        or data["ema_9"] < data["ema_21"]
+        or (data["rsi"] < 30 and data["prev_rsi"] > data["rsi"])
+        or data["ema_9"] > data["ema_21"]
+    )
+
+
+def process_signal(symbol, interval, exchange):
+    data = get_signal_data(symbol, interval, exchange)
+
+    if not data:
+        print("Error fetching indicator data.")
+        return SignalResponse(signal="error", rsi=0.0, ema=0.0)
+
+    # Default signal
+    signal = "hold"
+
+    # Signal checks
+    if check_buy_signal(data):
+        signal = "buy"
+    elif check_sell_signal(data):
+        signal = "sell"
+    elif check_exit_signal(data):
+        if data["rsi"] > 70:
+            signal = "exit-long"
+        elif data["rsi"] < 30:
+            signal = "exit-short"
+
+    # ✅ Save latest RSI and signal
+    update_signal_in_db(
+        symbol=symbol,
+        exchange=exchange,
+        interval=interval,
+        prev_rsi=data["rsi"],
+        last_signal=signal
+    )
+
+    return SignalResponse(
+        signal=signal,
+        rsi=round(data["rsi"], 2),
+        ema=round(data["ema_9"], 2)
+    )
