@@ -16,6 +16,7 @@
             --danger-color: #dc3545;
             --warning-color: #f9a825;
             --neutral-color: #6c757d;
+            --hold-color: #17a2b8;
         }
 
         body {
@@ -42,6 +43,39 @@
             margin-bottom: 20px;
             padding-bottom: 15px;
             border-bottom: 2px solid var(--primary-color);
+        }
+
+        .time-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+        }
+
+        .time-box {
+            text-align: right;
+            background-color: var(--background-color);
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            width: 40%;
+        }
+
+        .current-time {
+            font-size: 18px;
+            color: var(--secondary-color);
+            font-weight: bold;
+        }
+
+        .signal-time {
+            font-size: 16px;
+            color: var(--primary-color);
+            font-weight: bold;
+            margin: 5px 0;
+        }
+
+        .current-location {
+            color: var(--primary-color);
+            font-size: 14px;
         }
 
         .countdown {
@@ -82,6 +116,10 @@
             border-left-color: var(--warning-color);
         }
 
+        .hold-panel {
+            border-left-color: var(--hold-color);
+        }
+
         .signal-header {
             display: flex;
             justify-content: space-between;
@@ -89,11 +127,6 @@
             margin-bottom: 10px;
             font-size: 18px;
             font-weight: bold;
-        }
-
-        .signal-time {
-            font-size: 16px;
-            color: var(--secondary-color);
         }
 
         .signal-message {
@@ -120,8 +153,12 @@
             color: var(--warning-color);
         }
 
+        .hold-header {
+            color: var(--hold-color);
+        }
+
         .inactive-signal {
-            opacity: 0.6;
+            opacity: 0.7;
         }
 
         @media (max-width: 600px) {
@@ -133,10 +170,16 @@
 </head>
 <body>
     <div class="container">
-        
-        <!-- Countdown Timer -->
+
         <div class="countdown">
             Refreshing in: <span class="countdown-value" id="countdown">60</span> seconds
+        </div>
+
+        <div class="time-container">
+            <div class="time-box">
+                <div class="current-time" id="current-time">Loading time data...</div>
+                <div class="current-location" id="current-location">(Detecting your location...)</div>
+            </div>
         </div>
 
         <!-- Signal Displays -->
@@ -145,13 +188,12 @@
             <div class="signal-panel buy-panel" id="buy-panel">
                 <div class="signal-header">
                     <span class="buy-header">BUY SIGNAL</span>
-                    <span class="signal-time" id="buy-time">--/--/---- --:--:--</span>
                 </div>
                 <div class="signal-message" id="buy-message">
                     Waiting for buy signal...
                 </div>
                 <div class="signal-previous" id="buy-previous">
-                    The previous buy signal was at --/--/---- --:--:--
+                    no previous signal
                 </div>
             </div>
 
@@ -159,13 +201,25 @@
             <div class="signal-panel sell-panel" id="sell-panel">
                 <div class="signal-header">
                     <span class="sell-header">SELL SIGNAL</span>
-                    <span class="signal-time" id="sell-time">--/--/---- --:--:--</span>
                 </div>
                 <div class="signal-message" id="sell-message">
                     Waiting for sell signal...
                 </div>
                 <div class="signal-previous" id="sell-previous">
-                    The previous sell signal was at --/--/---- --:--:--
+                    no previous signal
+                </div>
+            </div>
+
+            <!-- Hold Signal -->
+            <div class="signal-panel hold-panel" id="hold-panel">
+                <div class="signal-header">
+                    <span class="hold-header">HOLD SIGNAL</span>
+                </div>
+                <div class="signal-message" id="hold-message">
+                    Waiting for hold signal...
+                </div>
+                <div class="signal-previous" id="hold-previous">
+                    no previous signal
                 </div>
             </div>
 
@@ -173,13 +227,12 @@
             <div class="signal-panel exit-panel" id="exit-panel">
                 <div class="signal-header">
                     <span class="exit-header">EXIT SIGNAL</span>
-                    <span class="signal-time" id="exit-time">--/--/---- --:--:--</span>
                 </div>
                 <div class="signal-message" id="exit-message">
                     Waiting for exit signal...
                 </div>
                 <div class="signal-previous" id="exit-previous">
-                    The previous exit signal was at --/--/---- --:--:--
+                    no previous signal
                 </div>
             </div>
         </div>
@@ -193,13 +246,57 @@
         
         let countdownTimer = 60;
         let countdownInterval;
+        let userCountry = "Unknown";
 
         // Store last active signal times
         let lastBuySignalTime = null;
         let lastSellSignalTime = null;
+        let lastHoldSignalTime = null;
         let lastExitSignalTime = null;
 
-        // Function to format date as DD/MM/YYYY HH:MM:SS
+        // Latest signal time
+        let latestSignalTime = null;
+
+        // Function to get user's location and time based on IP
+        function getUserLocationAndTime() {
+            $.getJSON('https://ipapi.co/json/', function(data) {
+                userCountry = data.country_name;
+                // Display detected country to console for debugging
+                console.log("Detected country:", userCountry);
+                updateCurrentTime();
+                
+                // Update time every second
+                setInterval(updateCurrentTime, 1000);
+            }).fail(function() {
+                // If IP lookup fails, use browser's local time
+                userCountry = "Local";
+                console.log("IP detection failed, using local browser time");
+                updateCurrentTime();
+                setInterval(updateCurrentTime, 1000);
+            });
+        }
+        
+        // Function to update current time display
+        function updateCurrentTime() {
+            const now = new Date();
+            const formattedTime = formatDateTimeForDisplay(now);
+            $('#current-time').text(`${formattedTime}`);
+            $('#current-location').text(`(${userCountry})`);
+        }
+
+        // Function to format date as DDMMYYYY HH MM SS for display
+        function formatDateTimeForDisplay(date) {
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            
+            return `${day}${month}${year} ${hours} ${minutes} ${seconds}`;
+        }
+
+        // Function to format date as DDMMYYYY HH MM SS (for signal times)
         function formatDateTime(date) {
             const day = String(date.getDate()).padStart(2, '0');
             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -208,14 +305,21 @@
             const minutes = String(date.getMinutes()).padStart(2, '0');
             const seconds = String(date.getSeconds()).padStart(2, '0');
             
-            return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+            return `${day}${month}${year} ${hours} ${minutes} ${seconds}`;
         }
 
         // Function to fetch all signals
         function fetchAllSignals() {
+            // Reset the latest signal time
+            latestSignalTime = null;
+            
             fetchSignal('/monitor_buy_signal', 'buy');
             fetchSignal('/monitor_sell_signal', 'sell');
+            fetchSignal('/monitor_hold_signal', 'hold');
             fetchSignal('/monitor_exit_signal', 'exit');
+            
+            // After a short delay to ensure all API calls have completed
+            setTimeout(updateSignalTimeDisplay, 500);
         }
 
         // Function to handle a single API call
@@ -228,25 +332,51 @@
                 const now = new Date();
                 const formattedNow = formatDateTime(now);
                 const panelId = `${signalType}-panel`;
-                const timeId = `${signalType}-time`;
                 const messageId = `${signalType}-message`;
                 const previousId = `${signalType}-previous`;
-                console.log(response)
-                // Update panel based on signal type and status
-                if (response.status === signalType) {
+                console.log(response);
+
+                // Process signal based on type
+                let isActive = false;
+                
+                if (signalType === 'buy' && response.status === 'buy') {
+                    isActive = true;
+                } else if (signalType === 'sell' && response.status === 'sell') {
+                    isActive = true;
+                } else if (signalType === 'hold' && response.status === 'hold') {
+                    isActive = true;
+                } else if (signalType === 'exit' && (response.status === 'exit' || response.status === 'exit-long' || response.status === 'exit-short')) {
+                    isActive = true;
+                }
+                
+                // Update panel based on signal status
+                if (isActive) {
                     // Active signal
                     $(`#${panelId}`).removeClass('inactive-signal');
-                    $(`#${timeId}`).text(formattedNow);
+                    
+                    // Update latest signal time
+                    latestSignalTime = formattedNow;
                     
                     // Set message based on signal type
                     const cryptoSymbol = response.symbol ? response.symbol.split('/')[0] : 'BTC';
-                    $(`#${messageId}`).text(`You can ${signalType} ${cryptoSymbol} now. The RSI is ${response.rsi}.`);
+                    
+                    if (signalType === 'exit') {
+                        // Specific message for exit signals
+                        const exitType = response.status === 'exit' ? 'exit' : 
+                                        response.status === 'exit-long' ? 'exit long' : 'exit short';
+                        $(`#${messageId}`).text(`You should ${exitType} ${cryptoSymbol} now. The RSI is ${response.rsi}.`);
+                    } else {
+                        // Generic message for other signals
+                        $(`#${messageId}`).text(`You can ${signalType} ${cryptoSymbol} now. The RSI is ${response.rsi}.`);
+                    }
                     
                     // Update last signal time
                     if (signalType === 'buy') {
                         lastBuySignalTime = formattedNow;
                     } else if (signalType === 'sell') {
                         lastSellSignalTime = formattedNow;
+                    } else if (signalType === 'hold') {
+                        lastHoldSignalTime = formattedNow;
                     } else if (signalType === 'exit') {
                         lastExitSignalTime = formattedNow;
                     }
@@ -256,30 +386,83 @@
                     $(`#${messageId}`).text(`No ${signalType} signal for ${response.symbol || defaultSymbol} at this time.`);
                 }
                 
-                // Update previous signal information using previous_signal_at field
-                if (response.previous_signal_at) {
-                    $(`#${previousId}`).text(`The previous ${signalType} signal was at ${response.previous_signal_at}`);
-                } else if (response.last_signal) {
-                    // Fallback to last_signal if previous_signal_at not available
-                    $(`#${previousId}`).text(`The previous ${signalType} signal was at ${response.last_signal}`);
+                // Check signal type and last_signal match for previous signals
+                let showPreviousSignal = false;
+                
+                if (signalType === 'buy' && response.last_signal === 'buy') {
+                    showPreviousSignal = true;
+                } else if (signalType === 'sell' && response.last_signal === 'sell') {
+                    showPreviousSignal = true;
+                } else if (signalType === 'hold' && response.last_signal === 'hold') {
+                    showPreviousSignal = true;
+                } else if (signalType === 'exit' && (response.last_signal === 'exit' || 
+                           response.last_signal === 'exit-long' || 
+                           response.last_signal === 'exit-short')) {
+                    showPreviousSignal = true;
+                }
+                
+                if (showPreviousSignal && response.previous_signal_at) {
+                    // Format the timestamp
+                    const formattedTime = formatPreviousSignalTime(response.previous_signal_at);
+                    $(`#${previousId}`).text(`The previous ${signalType} signal was at ${formattedTime}`);
                 } else {
-                    // Use stored last signal time if available
-                    let lastSignalTime;
-                    if (signalType === 'buy' && lastBuySignalTime) {
-                        lastSignalTime = lastBuySignalTime;
-                    } else if (signalType === 'sell' && lastSellSignalTime) {
-                        lastSignalTime = lastSellSignalTime;
-                    } else if (signalType === 'exit' && lastExitSignalTime) {
-                        lastSignalTime = lastExitSignalTime;
-                    }
-                    
-                    if (lastSignalTime) {
-                        $(`#${previousId}`).text(`The previous ${signalType} signal was at ${lastSignalTime}`);
-                    }
+                    // No matching signal type or no timestamp
+                    $(`#${previousId}`).text(`no previous signal`);
                 }
             }).fail(function() {
                 $(`#${signalType}-message`).text(`Failed to fetch ${signalType} signal. Please check your connection.`);
+                $(`#${signalType}-previous`).text(`no previous signal`);
             });
+        }
+
+        // Function to update the signal time display
+        function updateSignalTimeDisplay() {
+            if (latestSignalTime) {
+                $('#signal-time').text(latestSignalTime);
+            } else {
+                // No active signals
+                const now = new Date();
+                const formattedNow = formatDateTime(now);
+                $('#signal-time').text(formattedNow);
+            }
+        }
+
+        // Function to convert previous signal time to the new format
+        function formatPreviousSignalTime(timeString) {
+            // Handle ISO format (2025-05-06T08:32:44.72492+00:00)
+            if (timeString.includes('T')) {
+                try {
+                    const date = new Date(timeString);
+                    if (!isNaN(date.getTime())) {
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const year = date.getFullYear();
+                        const hours = String(date.getHours()).padStart(2, '0');
+                        const minutes = String(date.getMinutes()).padStart(2, '0');
+                        const seconds = String(date.getSeconds()).padStart(2, '0');
+                        
+                        return `${day}${month}${year} ${hours} ${minutes} ${seconds}`;
+                    }
+                } catch (e) {
+                    console.error("Error parsing ISO date:", e);
+                }
+            }
+            
+            // Try to parse the existing format (assuming DD/MM/YYYY HH:MM:SS)
+            const parts = timeString.split(' ');
+            if (parts.length >= 2) {
+                const dateParts = parts[0].split('/');
+                if (dateParts.length === 3) {
+                    // Convert to DDMMYYYY HH MM SS
+                    const timeParts = parts[1].split(':');
+                    if (timeParts.length === 3) {
+                        return `${dateParts[0]}${dateParts[1]}${dateParts[2]} ${timeParts[0]} ${timeParts[1]} ${timeParts[2]}`;
+                    }
+                }
+            }
+            
+            // If nothing else works, return a placeholder
+            return "DDMMYYYY HH MM SS";
         }
 
         // Function to start auto refresh
@@ -311,6 +494,7 @@
 
         // Start the process when page loads
         $(document).ready(function() {
+            getUserLocationAndTime();
             fetchAllSignals();
             startAutoRefresh();
         });

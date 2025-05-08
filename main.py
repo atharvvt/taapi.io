@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-
+from app.strategy3 import process_signal  # ensure this is imported
 
 app = FastAPI()
 
@@ -16,7 +16,6 @@ templates = Jinja2Templates(directory="templates")
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-from app.strategy2 import process_signal  # ensure this is imported
 
 @app.get("/monitor_buy_signal")
 def monitor_buy(symbol: str = "BTC/USDT", interval: str = "5m", exchange: str = "binance"):
@@ -24,7 +23,6 @@ def monitor_buy(symbol: str = "BTC/USDT", interval: str = "5m", exchange: str = 
 
     if signal_data.signal == "error":
         return JSONResponse(status_code=500, content={"status": "error", "detail": "Failed to fetch indicators"})
-
     if signal_data.signal == "buy":
         return {"status": signal_data.signal, "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval, "last_signal":signal_data.last_signal, "previous_signal_at": signal_data.updated_at}
     return {"status": "", "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval, "last_signal":signal_data.last_signal, "previous_signal_at": signal_data.updated_at}
@@ -56,7 +54,7 @@ def monitor_exit(symbol: str = "BTC/USDT", interval: str = "5m", exchange: str =
         )
 
     # Only respond if an exit signal is generated
-    if signal_data.signal in ("exit-long", "exit-short"):
+    if signal_data.signal in ("exit-long", "exit-short", "exit"):
         return {
             "status": signal_data.signal,  # status is "exit-long" or "exit-short"
             "rsi": signal_data.rsi,
@@ -77,3 +75,14 @@ def monitor_exit(symbol: str = "BTC/USDT", interval: str = "5m", exchange: str =
         "last_signal": signal_data.last_signal,
         "previous_signal_at": signal_data.updated_at
     }
+
+
+@app.get("/monitor_hold_signal")
+def monitor_buy(symbol: str = "BTC/USDT", interval: str = "5m", exchange: str = "binance"):
+    signal_data = process_signal(symbol, interval, exchange)
+
+    if signal_data.signal == "error":
+        return JSONResponse(status_code=500, content={"status": "error", "detail": "Failed to fetch indicators"})
+    if signal_data.signal == "hold":
+        return {"status": signal_data.signal, "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval, "last_signal":signal_data.last_signal, "previous_signal_at": signal_data.updated_at}
+    return {"status": "", "rsi": signal_data.rsi, "exchange": exchange, "symbol": symbol, "interval":interval, "last_signal":signal_data.last_signal, "previous_signal_at": signal_data.updated_at}

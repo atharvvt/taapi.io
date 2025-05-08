@@ -125,37 +125,42 @@ def check_exit_short(data):
 def process_signal(symbol, interval, exchange):
     data = get_signal_data(symbol, interval, exchange)
 
-    print("*"*50)
+    print("*" * 50)
     print(data)
-    print("*"*50)
+    print("*" * 50)
 
     if not data:
         print("Error fetching indicator data.")
         return SignalResponse(signal="error", rsi=0.0, ema=0.0)
-    
+
     signal = ""
 
-    # Signal checks
+    # Signal checks with debug logs
     if check_buy_signal(data):
         signal = "buy"
+        print("[DEBUG] Buy signal triggered: RSI crossed above 30 and EMA(9) > EMA(21)")
     elif check_sell_signal(data):
         signal = "sell"
+        print("[DEBUG] Sell signal triggered: RSI crossed below 70 and EMA(9) < EMA(21)")
     elif check_exit_long(data):
         signal = "exit-long"
+        print("[DEBUG] Exit-long signal triggered: RSI reversed from >70 or EMA(9) < EMA(21)")
     elif check_exit_short(data):
         signal = "exit-short"
+        print("[DEBUG] Exit-short signal triggered: RSI reversed from <30 or EMA(9) > EMA(21)")
     else:
-        signal = "hold"
-
+        print("[DEBUG] No actionable signal at this time.")
+        signal = ""
 
     # ✅ Save latest RSI and signal
-    update_signal_in_db(
-        symbol=symbol,
-        exchange=exchange,
-        interval=interval,
-        prev_rsi=data["rsi"],
-        last_signal=signal
-    )
+    if signal in ("buy", "sell", "exit-long", "exit-short"):
+        update_signal_in_db(
+            symbol=symbol,
+            exchange=exchange,
+            interval=interval,
+            prev_rsi=data["rsi"],
+            last_signal=signal
+        )
 
     return SignalResponse(
         signal=signal,
