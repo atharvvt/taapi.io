@@ -46,6 +46,7 @@ import time
 from dotenv import load_dotenv
 from app.schema import SignalResponse
 from app.get_rsi import update_signal_in_db, get_prev_rsi
+from datetime import datetime
 
 load_dotenv()
 
@@ -214,6 +215,6 @@ def process_signal(symbol, interval, exchange):
         signal=signal,
         rsi=round(data["rsi"], 2),
         ema=round(data["ema_9"], 2),
-        last_signal=data.get("last_signal", ""),
-        updated_at=data["previous_signal_at"]
+        last_signal=data.get("last_signal", "") or "",
+        updated_at=data["previous_signal_at"] or datetime.utcnow()
     )
